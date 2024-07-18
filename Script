@@ -54,7 +54,6 @@ FAKE2=data.frame(dist=8:60,Population=c(rep("S",25),rep("M",28)))
 
 predicted_M2 <- data.frame(AI_pred = predict(M2,FAKE2,type="response"), dist_pred=FAKE2$dist)
 
-
 M3=glm(AI~Probe*Population,data=behav,family="quasipoisson")
 anova(M3, test="F")
 summary(M3)
