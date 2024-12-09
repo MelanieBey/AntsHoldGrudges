@@ -1,65 +1,37 @@
-#library
-library(base)
-library(utils)
-library(dplyr)
-library(ggplot2)
-library(stats)
-library(scales)
-library(pgirmess)
-library(pdftools)
-library(MASS)
-library(car)
+#Packages libraries
+library(base) #
+library(datasets) #
+library(graphics) #
+library(grDevices) #
+library(methods) #
 library(survival)
-library(coin)
-library(stats)
-library(ggpubr)
-library(stats4)
-library(ggplot2)
-library(magick)
-library(here) 
-library(magrittr) 
-library(lme4)
-library(blme)
-#BiocManager::install("")
+library(stats) #
+library(utils)#
+library(ggplot2) #
+library(dplyr) #
+library(coin)#
 
 setwd("")
+#### Main Figure
+### Fig. B. Nasty neighbour effect in Lasius niger
+#Upload Data
+FigB <- read.table("Exp1.csv",header=TRUE, sep=";", na.strings="NA", dec=",", strip.white=TRUE)
+FigB$neig=rep(F,nrow(FigB))
+FigB$neig[FigB$dist<5]<-T
+FigB$neig=factor(FigB$neig)
+FigB$dist2=FigB$dist*FigB$dist
 
-#Field experiment:	Ecological context, the place of learning in the “nasty neighbors effect”
-behav <- read.table(".../Exp1.csv",
-                    header=TRUE, sep=";", na.strings="NA", dec=",", strip.white=TRUE)
-
-behav$Population=factor(behav$Population)
-
-### 1. effect of geographical distance on behaviour
-#Foraging distance:
-#L. niger alienus 1.3m Headley 1941
-#aphids tended by ants mostly <3.2 m from a nest entrance (Devigne & Detrain 2005)
-#for non-neighbor analyses, I only use colonies >5m. that excludes all colonies 3m and shorter and only includes colonies >8m
-
-behav$neig=rep(F,nrow(behav))#neighbors are TRUE
-behav$neig[behav$dist<5]<-T
-behav$neig=factor(behav$neig)
-behav$dist2=behav$dist*behav$dist
-
-table(behav$neig)
-M1=glm(AI~(dist+dist2),data=behav[behav$Probe=="Non-nestmates",],family="quasipoisson")
+#Plot
+M1=glm(AI~(dist+dist2),data=FigB[FigB$Probe=="Non-nestmates",],family="quasipoisson")
 FAKE1=data.frame(dist=rep(0.6*1:100,2),dist2=rep((0.6*1:100)^2,2),Population=c(rep("S",100),rep("M",100)))
 predicted_M1 <- data.frame(AI_pred = predict(M1,FAKE1,type="response"), dist_pred=FAKE1$dist)
-anova(M1, test="F")
-summary(M1)
 
-M2=glm(AI~dist,data=behav[behav$Probe=="Non-nestmates" & behav$neig=="FALSE",],family="quasipoisson")
-FAKE2=data.frame(dist=8:60)
+M2=glm(AI~dist,data=FigB[FigB$Probe=="Non-nestmates" & FigB$neig=="FALSE",],family="quasipoisson")
 FAKE2=data.frame(dist=8:60,Population=c(rep("S",25),rep("M",28)))
-
 predicted_M2 <- data.frame(AI_pred = predict(M2,FAKE2,type="response"), dist_pred=FAKE2$dist)
 
-M3=glm(AI~Probe*Population,data=behav,family="quasipoisson")
-anova(M3, test="F")
-summary(M3)
-
-ggplot(data=behav[behav$Probe=="Non-nestmates",], aes(x = dist, y=AI)) +
-  geom_point(aes(color=Population, shape=neig), position=position_jitter(0.3), size=12, alpha = 0.5) +
+ggplot(data=FigB[FigB$Probe=="Non-nestmates",], aes(x = dist, y=AI)) +
+  geom_point(aes(color=Population, shape=neig), position=position_jitter(0.3), size=12) +
   scale_shape_manual(values=c(19, 1))+
   scale_color_grey(start=0.8, end=0)+
   scale_y_continuous(name="Aggression of focal ants") +
@@ -68,22 +40,23 @@ ggplot(data=behav[behav$Probe=="Non-nestmates",], aes(x = dist, y=AI)) +
         axis.title=element_text(size=54,face="bold"),
         panel.background=element_rect(fill = "white", colour = "black"),
         legend.position = "none") +
-  geom_line(color='darkgray', se=F, lwd=2,data = predicted_M1, aes(x=dist_pred, y=AI_pred)) +
-  geom_line(color='darkgray',se=F, lwd=2, lty=2,data = predicted_M2, aes(x=dist_pred, y=AI_pred)) #+
-ggsave(filename ="exp1plot.pdf",
-       width = 26, height = 12, dpi = 1200)
+  geom_line(color='darkgray', lwd=2,data = predicted_M1, aes(x=dist_pred, y=AI_pred)) +
+  geom_line(color='darkgray', lwd=2, lty=2,data = predicted_M2, aes(x=dist_pred, y=AI_pred)) #+
 
-# 2.	Ants learn to modulate their aggression based on their prior experience with non-nestmates.
-##Ants learn to discriminate known from unknown non-nestmate
-#	On the long term memory 
-TReb <- read.table(".../Exp2TestEncunter.csv",
+#Model
+M=glm(AI~(dist+dist2)*Population,data=FigB[FigB$Probe=="Non-nestmates",],family="quasipoisson")
+anova(M, test="F")
+M=glm(AI~(dist+dist2)*Population,data=FigB[FigB$Probe=="Non-nestmates" & FigB$neig=="FALSE",],family="quasipoisson")
+anova(M, test="F")
+
+# Fig. C. Ants are more aggressive against known than unknown non-nestmates
+#Upload Data
+FigC <- read.table("Exp2TestEncounter.csv",
                    header=TRUE, sep=";", na.strings="NA", dec=",", strip.white=TRUE)
-#TReb <- TReb %>% mutate_if(is.character,as.factor)
-#TReb <- TReb %>% mutate_if(is.integer,as.factor)
-
-ggplot(data=TReb[TReb$remove!="remove",], aes(x = factor(group, level = c('familiar', 'unfamiliar', 'nestmate')), y=AI )) +
+#Plot
+ggplot(data=FigC, aes(x = factor(Group, level = c('familiar', 'unfamiliar', 'nestmate')), y=AI )) +
   geom_boxplot(outlier.shape = NA, coef = 0, fill=c("maroon", "yellow","aquamarine4"))+ 
-  geom_point(aes(color=foe_test), position=position_jitter(0.3), size=12, alpha = 0.8) +
+  geom_point(aes(color=Foe_Test), position=position_jitter(0.3), size=12) +
   scale_color_grey(start=0.8, end=0)+
   scale_y_continuous(name="Aggression of focal ants") +
   stat_summary(fun=mean, geom="point", shape=21, size=15, stroke = 3) +
@@ -96,79 +69,37 @@ Non-nestmate","Nestmate")) +
         panel.background=element_rect(fill = "white", colour = "black"),
         legend.position = "none",
         axis.line=element_line(size=1.5),
-        plot.margin=grid::unit(c(30,10,-10,10), "mm"))+
-  annotate(geom="text", x=1, y=3.6, label="a", color="black", size=20) +
-  annotate(geom="text", x=2, y=2.6, label="b", color="black", size=20) +
-  annotate(geom="text", x=3, y=2.6, label="b", color="black", size=20) #+
-  ggsave(filename ="exp2plot.pdf",width = 26, height = 12, dpi = 1200)
+        plot.margin=grid::unit(c(30,10,-10,10), "mm")) 
 
-ants2 <- image_read_pdf("exp2&3.pdf")
-plot2 <- image_read_pdf("exp2plot.pdf")
-final2 <- image_append(c(plot2,ants2), stack = TRUE)
-
-image_write(final2, path = "Experiments2_plot_final.pdf", format = "pdf")
-
-M1 <- bglmer(AI~group + (1|foe_test), TReb[TReb$remove!="remove",], family=binomial,
-                  fixef.prior = normal(cov = diag(9,3)))
-
-###GLMER
-TReb$group=relevel(TReb$group,ref="unfamiliar")
-M1=glmer(AI~group + (1|foe_test), family=poisson, data=TReb[TReb$remove!="remove",])
-Anova(M1) # F=  35.408, 2.047e-08 ***
-anova(M1)
-pf(17.704, 2, 308, lower.tail = FALSE) #5.272389e-08
-#F-distribution 
-#Fratio : 17.704
-#numerator degrees of freedom : nbtreat−1 = 3-1 = 2
-#denominator degrees of freedom : n−nbtreat = 312-3=308
-#https://www.statology.org/f-distribution-calculator/
-
+#Model
+#glm
+M=glm(AI~Foe_Test*Group,data=FigC,family="quasipoisson")
+anova(M, test="F")
 #Permutation test
-permtest <- oneway_test(AI ~ group, TReb[TReb$remove!="remove",], 
+FigC<- FigC %>% mutate_if(is.character,as.factor)
+permtest <- oneway_test(AI ~ Group, FigC, 
                         distribution = approximate(nresample = 1000000), 
                         teststat = "quad")
-pvalue(permtest) #2e-06
-
-test_1.2<- oneway_test(AI ~ group,droplevels(subset(TReb[TReb$remove!="remove",], group=="familiar"|group=="unfamiliar")),distribution =approximate(nresample = 100000))
+pvalue(permtest) 
+test_1.2<- oneway_test(AI ~ Group,droplevels(subset(FigC, Group=="familiar"|Group=="unfamiliar")),distribution =approximate(nresample = 100000))
 p_1.2 <- pvalue(test_1.2)
-
-test_1.3<- oneway_test(AI ~ group,droplevels(subset(TReb[TReb$remove!="remove",], group=="familiar"|group=="nestmate")),distribution =approximate(nresample = 100000))
+test_1.3<- oneway_test(AI ~ Group,droplevels(subset(FigC, Group=="familiar"|Group=="nestmate")),distribution =approximate(nresample = 100000))
 p_1.3 <- pvalue(test_1.3)
-
-test_2.3<- oneway_test(AI ~ group,droplevels(subset(TReb[TReb$remove!="remove",], group=="unfamiliar"|group=="nestmate")),distribution =approximate(nresample = 100000))
+test_2.3<- oneway_test(AI ~ Group,droplevels(subset(FigC, Group=="unfamiliar"|Group=="nestmate")),distribution =approximate(nresample = 100000))
 p_2.3 <- pvalue(test_2.3)
-
-# Pvlue correction Bonferroni Holm
-
+#correction Bonferroni Holm
 P_1.2.3 <- c(p_1.2, p_1.3, p_2.3 )
-p.adjust(P_1.2.3) ### 0.00000 0.00012 0.68629
+p.adjust(P_1.2.3) 
 
+#Fig. D. Aggression acts as the unconditioned stimulus in associative learning of non-nestmate odours
 
-###GLMER
-TReb$group=relevel(TReb$group,ref="unfamiliar")
-M1=glmer(AI_contact~group + (1|foe_test), family=poisson, data=TReb[TReb$remove!="remove",])
-Anova(M1) # F=  28.956, 5.157e-07 ***
-anova(M1)
-pf(14.478, 2, 308, lower.tail = FALSE) #9.784496e-07
-#F-distribution 
-#Fratio : 14.478
-#numerator degrees of freedom : nbtreat−1 = 3-1 = 2
-#denominator degrees of freedom : n−nbtreat = 312-3=308
-#https://www.statology.org/f-distribution-calculator/
-
-
-#3.	Ant distinguish non-nestmates odors and modulate their aggression response 
-#     according to the aggression level they received from friendly and unfriendly non-nestmates 
-
-TMel1 <- read.table(".../Exp4TestEncunter.csv",
+FigD <- read.table("Exp4TestEncounter.csv",
                           header=TRUE, sep=";", na.strings="NA", dec=",", strip.white=TRUE)
-#TMel1<- TMel1 %>% mutate_if(is.character,as.factor)
-#TMel1 <- TMel1 %>% mutate_if(is.integer,as.factor)
 
-ggplot(data=TMel1[TMel1$remove!="remove",], aes(x = factor(group, level = c('antenna_familiar', 'antenna_unfamiliar', 'ablation_unfamiliar', 'ablation_familiar')), y=AI )) +
+ggplot(data=FigD, aes(x = factor(Group, level = c('antenna_familiar', 'antenna_unfamiliar', 'ablation_unfamiliar', 'ablation_familiar')), y=AI )) +
   geom_boxplot(outlier.shape = NA, coef = 0, fill=c("maroon", "yellow", "yellow", "maroon"))+ 
-  geom_point(aes(color=foe_test), position=position_jitter(0.4), size=12, alpha = 0.5) +
-  scale_color_grey(start=0.8, end=0)+
+  geom_point(aes(color=Foe_Test), size=12) +
+  scale_color_grey(start=0.8, end=0.2)+
   scale_y_continuous(name="Aggression of focal ants") +
   stat_summary(fun=mean, geom="point", shape=21, size=15, stroke = 3) +
   scale_x_discrete(name ="", labels=c(
@@ -182,492 +113,106 @@ Known")) +
         panel.background=element_rect(fill = "white", colour = "black"),
         legend.position = "none",
         axis.line=element_line(size=1.5),
-        plot.margin=grid::unit(c(30,10,-10,10), "mm"))+
-  annotate(geom="text", x=1, y=3.5, label="a", color="black", size=20) +
-  annotate(geom="text", x=2, y=3.2, label="ab", color="black", size=20) +
-  annotate(geom="text", x=3, y=2.5, label="ab", color="black", size=20) +
-  annotate(geom="text", x=4, y=1.75, label="b", color="black", size=20) #+
-  ggsave(filename ="exp4plot_2.pdf",
-         width = 26, height = 12, dpi = 1200)
+        plot.margin=grid::unit(c(30,10,-10,10), "mm"))#+
 
-ants4 <- image_read_pdf("exp4.pdf")
-plot4 <- image_read_pdf("exp4plot_2.pdf")
-final4 <- image_append(c(plot4,ants4), stack = TRUE)
-image_write(final4, path = "Experiments4_plot_final.pdf", format = "pdf")
-
-
-TMel1$group=relevel(TMel1$group,ref="antenna_familiar")
-M3=glmer(AI~treatment*familiarity + (1|foe_test), family=poisson, data=TMel1[TMel1$remove!="remove",])
-M3=glmer(AI~group + (1|foe_test), family=poisson, data=TMel1[TMel1$remove!="remove",])
-Anova(M3) #F= 15.72 0.001295 **
-anova(M3) 
-pf(5.2397, 3, 322, lower.tail = FALSE) #0.001525422
-
-#F-distribution 
-#Fratio : 5.2397
-#numerator degrees of freedom : nbtreat −1 = 4-1 = 3
-#denominator degrees of freedom : n−nbtreat = 326-4=322
-#https://www.statology.org/f-distribution-calculator/
-  
-
-permtest <- oneway_test(AI ~ group, TMel1[TMel1$remove!="remove",], 
+#Model
+FigD<- FigD %>% mutate_if(is.character,as.factor)
+M=glm(AI~Foe_Test*Group,data=FigD,family="quasipoisson")
+anova(M, test="F")
+#Permutation test
+permtest <- oneway_test(AI ~ Group, FigD, 
                         distribution = approximate(nresample = 1000000), 
                         teststat = "quad")
 pvalue(permtest) #0.039649
 
-test_1.2<- oneway_test(AI ~ group,droplevels(subset(TMel1[TMel1$remove!="remove",], group=="antenna_familiar"|group=="antenna_unfamiliar")),distribution =approximate(nresample = 100000))
+test_1.2<- oneway_test(AI ~ Group,droplevels(subset(FigD, Group=="antenna_familiar"|Group=="antenna_unfamiliar")),distribution =approximate(nresample = 100000))
 p_1.2 <- pvalue(test_1.2)
 
-test_1.3<- oneway_test(AI ~ group,droplevels(subset(TMel1[TMel1$remove!="remove",], group=="antenna_familiar"|group=="ablation_unfamiliar")),distribution =approximate(nresample = 100000))
+test_1.3<- oneway_test(AI ~ Group,droplevels(subset(FigD, Group=="antenna_familiar"|Group=="ablation_unfamiliar")),distribution =approximate(nresample = 100000))
 p_1.3 <- pvalue(test_1.3)
 
-test_1.4<- oneway_test(AI ~ group,droplevels(subset(TMel1[TMel1$remove!="remove",], group=="antenna_familiar"|group=="ablation_familiar")),distribution =approximate(nresample = 100000))
+test_1.4<- oneway_test(AI ~ Group,droplevels(subset(FigD, Group=="antenna_familiar"|Group=="ablation_familiar")),distribution =approximate(nresample = 100000))
 p_1.4 <- pvalue(test_1.4)
 
-test_2.3<- oneway_test(AI ~ group,droplevels(subset(TMel1[TMel1$remove!="remove",], group=="antenna_unfamiliar"|group=="ablation_unfamiliar")),distribution =approximate(nresample = 100000))
+test_2.3<- oneway_test(AI ~ Group,droplevels(subset(FigD, Group=="antenna_unfamiliar"|Group=="ablation_unfamiliar")),distribution =approximate(nresample = 100000))
 p_2.3 <- pvalue(test_2.3)
 
-test_2.4<- oneway_test(AI ~ group,droplevels(subset(TMel1[TMel1$remove!="remove",], group=="antenna_unfamiliar"|group=="ablation_familiar")),distribution =approximate(nresample = 100000))
+test_2.4<- oneway_test(AI ~ Group,droplevels(subset(FigD, Group=="antenna_unfamiliar"|Group=="ablation_familiar")),distribution =approximate(nresample = 100000))
 p_2.4 <- pvalue(test_2.4)
 
-test_3.4<- oneway_test(AI ~ group,droplevels(subset(TMel1[TMel1$remove!="remove",], group=="ablation_unfamiliar"|group=="ablation_familiar")),distribution =approximate(nresample = 100000))
+test_3.4<- oneway_test(AI ~ Group,droplevels(subset(FigD, Group=="ablation_unfamiliar"|Group=="ablation_familiar")),distribution =approximate(nresample = 100000))
 p_3.4 <- pvalue(test_3.4)
 
-# Pvlue correction Bonferroni Holm
-
+#  correction Bonferroni Holm
 P_1.2.3 <- c(p_1.2, p_1.3, p_1.4, p_2.3, p_2.4,p_3.4 )
-p.adjust(P_1.2.3) ###  0.67360 0.50812 0.03918 0.67360 0.14610 0.59385
+p.adjust(P_1.2.3) 
 
 
-M3=glmer(AI_contact~group + (1|foe_test), family=poisson, data=TMel1[TMel1$remove!="remove",])
-Anova(M3) #F= 11.243 0.01048 *
-anova(M3) 
-pf(3.7475, 3, 322, lower.tail = FALSE) #0.01136497
+#### Supplementary Material 
+#S1
+M=glm(AI~Probe*Population,data=FigB,family="quasipoisson")
+anova(M, test="F")
 
-#F-distribution 
-#Fratio : 3.7475
-#numerator degrees of freedom : nbtreat −1 = 4-1 = 3
-#denominator degrees of freedom : n−nbtreat = 326-4=322
-#https://www.statology.org/f-distribution-calculator/
+#S2
+M=glm(AI~Population*RDB,data=FigB[FigB$Probe=="Non-nestmates" & FigB$neig=="FALSE",],family="quasipoisson")
+anova(M, test="F")
 
-
-# Fig
-A <- image_read_pdf("Experiments2_plot_final_contact.pdf")
-B <- image_read_pdf("Experiments4_plot_final_contact.pdf")
-C <- image_read_pdf("figure2&4fusion.pdf")
-D <- image_read_pdf("Experiment1.pdf")
-blank <- image_read_pdf("blank.pdf")
-
-Dcenter <- image_append(c(blank, D), stack = TRUE)
-DC <- image_append(c(C,Dcenter), stack = FALSE)
-AB <- image_append(c(A,B), stack = FALSE)
-ABCD <- image_append(c(DC,AB), stack = TRUE)
-image_write(ABCD, path = "figure1_contact.pdf", format = "pdf")
-
-
-
-
-#### Extra Material 
-#Experiment 1: Field experiment:	Ecological context, the place of learning in the “nasty neighbors effect”
-behav <- read.table(".../Exp1.csv",
-                    header=TRUE, sep=";", na.strings="NA", dec=",", strip.white=TRUE)
-
-behav$Population=factor(behav$Population)
-
-### effect of geographical distance on behaviour
-#Foraging distance:
-#L. niger alienus 1.3m Headley 1941
-#aphids tended by ants mostly <3.2 m from a nest entrance (Devigne & Detrain 2005)
-#for non-neighbor analyses, I only use colonies >5m. that excludes all colonies 3m and shorter and only includes colonies >8m
-
-behav$neig=rep(F,nrow(behav))#neighbors are TRUE
-behav$neig[behav$dist<5]<-T
-behav$neig=factor(behav$neig)
-behav$dist2=behav$dist*behav$dist
-
-
-M4=glm(AI~CRDB*Population,data=behav[behav$neig=="FALSE",],family="quasipoisson")
-FAKE4=data.frame(CRDB=0.01*(34:38),Population=c(rep("M",5)))
-predicted_M4 <- data.frame(AI_pred = predict(M4,FAKE4,type="response"), chem_pred=FAKE4$CRDB)
-
-M5=glm(AI~CRDB*Population,data=behav[behav$neig=="FALSE",],family="quasipoisson")
-FAKE5=data.frame(CRDB=0.01*(21:34),Population=c(rep("S",14)))
-predicted_M5 <- data.frame(AI_pred = predict(M5,FAKE5,type="response"), chem_pred=FAKE5$CRDB)
-
-ggplot(data=behav[behav$Probe=="Non-nestmates",], aes(x = CRDB, y=AI)) +
-  geom_point(aes(color=Population, shape=neig), size=12, alpha = 0.5) +
-  #geom_point(aes(color=Population, shape=neig), position=position_jitter(0.3), size=12, alpha = 0.5) +
-  
-  scale_shape_manual(values=c(19, 1))+
-  scale_color_grey(start=0.8, end=0)+
-  scale_y_continuous(name="Aggression index") +
-  scale_x_continuous(name="Chemical distance")+
-  theme(axis.text=element_text(size=54, face="bold"),
-        axis.title=element_text(size=54,face="bold"),
-        panel.background=element_rect(fill = "white", colour = "black"),
-        legend.position = "none") +
-  geom_line(color='darkgray', se=F, lwd=2,data = predicted_M4, aes(x=chem_pred, y=AI_pred)) +
-  geom_line(color='darkgray',se=F, lwd=2, lty=2,data = predicted_M5, aes(x=chem_pred, y=AI_pred)) #+
-ggsave(filename ="Chemdist.pdf",width = 18, height = 12, dpi = 1200)
-
-
-ggplot(data=behav, aes(x = Probe, y=AI )) +
-  geom_boxplot(outlier.shape = NA, coef = 0, fill=c("aquamarine4", "maroon"))+ 
-  geom_point(aes(color=Population), position=position_jitter(0.4), size=12, alpha = 0.5) +
-  scale_color_grey(start=0.8, end=0)+
-  scale_y_continuous(name="Aggression index") +
-  stat_summary(fun=mean, geom="point", shape=21, size=15, stroke = 3) +
-  scale_x_discrete(name ="Encounters between ...", labels=c("Nestmates","Non-nestmates")) +
-  theme(axis.text=element_text(size=54, face="bold"),
-        axis.title=element_text(size=54,face="bold"),
-        panel.background=element_rect(fill = "white", colour = "black"),
-        legend.position = "none") +
-  annotate(geom="text", x=1.5, y=2.75, label="**", color="black", size=40) #+
-  ggsave(filename ="controlfieldexp.pdf",
-         width = 20, height = 12, dpi = 1200)
-
-  
-#Experiment 2
-TRebEnc <- read.table(".../Exp2TrainingPhase.csv",
+#S3
+FigS3 <- read.table("Exp2TrainingPhase.csv",
                    header=TRUE, sep=";", na.strings="NA", dec=",", strip.white=TRUE)
+M=glm(AI~Focal_Colony+Day*Treatment,data=FigS3,family="quasipoisson")
+anova(M, test="F")
 
-TRebCon <- read.table(".../Exp2TrainingPhaseControl.csv",
+#S4
+FigS4 <- read.table("Exp2TrainingPhaseControl.csv",
+                    header=TRUE, sep=";", na.strings="NA", dec=",", strip.white=TRUE)
+M=glm(AI~Enemy_Day6*Group,data=FigS4,family="quasipoisson")
+anova(M, test="F")
+
+#S5
+FigS5 <- read.table("Exp3TrainingPhase.csv",
+                    header=TRUE, sep=";", na.strings="NA", dec=",", strip.white=TRUE)
+M=glm(AI~Focal_Colony+Round*Treatment,data=FigS5,family="quasipoisson")
+anova(M, test="F")
+
+#S6 
+FigS6 <- read.table("Exp3TestEncounter.csv",
+                    header=TRUE, sep=";", na.strings="NA", dec=",", strip.white=TRUE)
+#Model
+M=glm(AI~Foe_Test*Group,data=FigS6,family="quasipoisson")
+anova(M, test="F")
+
+#Permutation test
+FigS6<- FigS6 %>% mutate_if(is.character,as.factor)
+permtest <- oneway_test(AI ~ Group, FigS6, 
+                        distribution = approximate(nresample = 1000000), 
+                        teststat = "quad")
+pvalue(permtest) 
+test_1.2<- oneway_test(AI ~ Group,droplevels(subset(FigS6, Group=="fam"|Group=="unf")),distribution =approximate(nresample = 100000))
+p_1.2 <- pvalue(test_1.2)
+test_1.3<- oneway_test(AI ~ Group,droplevels(subset(FigS6, Group=="fam"|Group=="nestmate")),distribution =approximate(nresample = 100000))
+p_1.3 <- pvalue(test_1.3)
+test_2.3<- oneway_test(AI ~ Group,droplevels(subset(FigS6, Group=="unf"|Group=="nestmate")),distribution =approximate(nresample = 100000))
+p_2.3 <- pvalue(test_2.3)
+#correction Bonferroni Holm
+P_1.2.3 <- c(p_1.2, p_1.3, p_2.3 )
+p.adjust(P_1.2.3) 
+
+#S7
+FigS7S8S9 <- read.table("Exp4TrainingPhase.csv",
+                    header=TRUE, sep=";", na.strings="NA", dec=",", strip.white=TRUE)
+M=glm(AI~Training_Colony*Treatment,data=FigS7S8S9,family="quasipoisson")
+anova(M, test="F")
+
+#S8
+FigS7S8S9 <- read.table("Exp4TrainingPhase.csv",
                       header=TRUE, sep=";", na.strings="NA", dec=",", strip.white=TRUE)
+M=glm(Contact_Time~Training_Colony*Treatment,data=FigS7S8S9,family="quasipoisson")
+anova(M, test="F")
 
-#TRebEnc <- TRebEnc %>% mutate_if(is.character,as.factor)
-#TRebEnc <- TRebEnc %>% mutate_if(is.integer,as.factor)
-TRebCon <- TRebCon %>% mutate_if(is.character,as.factor)
-TRebCon <- TRebCon %>% mutate_if(is.integer,as.factor)
+#S9
+FigS7S8S9 <- read.table("Exp4TrainingPhase.csv",
+                        header=TRUE, sep=";", na.strings="NA", dec=",", strip.white=TRUE)
+M=glm(AI~Training_Colony+Day*Treatment,data=FigS7S8S9,family="quasipoisson")
+anova(M, test="F")
 
-###
-ggplot(data=TRebCon, aes(x = groups, y=AI)) +
-  geom_boxplot(outlier.shape = NA, coef = 0, fill=c("aquamarine4", "aquamarine4"))+ 
-  geom_point(aes(color=training_enemy), position=position_jitter(0.4), size=12, alpha = 0.5) +
-  scale_color_grey(start=0.8, end=0)+
-  scale_y_continuous(name="Aggression index") +
-  stat_summary(fun=mean, geom="point", shape=21, size=15, stroke = 3) +
-  scale_x_discrete(name ="Trained with ...", labels=c("Non-nestmate
-n=104","Nestmate 
-n=52")) +
-  theme(axis.text=element_text(size=54, face="bold"),
-        axis.title=element_text(size=54,face="bold"),
-        panel.background=element_rect(fill = "white", colour = "black"),
-        legend.position = "none") +
-  coord_cartesian( ylim = c(0, 4))#+
-ggsave(filename ="Exp2control.pdf",
-       width = 20, height = 12, dpi = 1200)
-
-summary(TRebCon$groups)
-M=glmer(AI~groups + (1|training_enemy), family=poisson, data=TRebCon)
-Anova(M) # F= 0.3065, p 0.5799
-anova(M) 
-pf(0.3065, 1, 156, lower.tail = FALSE) #0.5806285
-#F-distribution 
-#Fratio : 27.628
-#numerator degrees of freedom : nbtreat −1 = 2-1= 1
-#denominator degrees of freedom : n−nbtreat = 158 -2 = 156
-#https://www.statology.org/f-distribution-calculator/
-
-ggplot(data=TRebEnc[TRebEnc$groups=="foe",],  aes(x = factor(day), y=AI )) +
-  geom_boxplot(outlier.shape = NA, coef = 0, fill=c("maroon", "maroon", "maroon", "maroon", "maroon"))+ 
-  geom_point(aes(color=training_colony), position=position_jitter(0.4), size=12, alpha = 0.5) +
-  scale_color_grey(start=0.8, end=0)+
-  scale_y_continuous(name="Aggression index") +
-  stat_summary(fun=mean, geom="point", shape=21, size=15, stroke = 3) +
-  scale_x_discrete(name ="Days where encounters took place", labels=c("Day 1
-n=378","Day 2 
-n=367","Day 3 
-n=357","Day 4
-n=335","Day 5 
-n=323")) +
-  theme(axis.text=element_text(size=54, face="bold"),
-        axis.title=element_text(size=54,face="bold"),
-        panel.background=element_rect(fill = "white", colour = "black"),
-        legend.position = "none") +
-  annotate(geom="text", x=3, y=3.5, label="***", color="black", size=40) #+
-ggsave(filename ="Exp2suplencfoe.pdf",
-       width = 20, height = 12, dpi = 1200)
-
-ggplot(data=TRebEnc[TRebEnc$groups=="nestmate",],  aes(x = factor(day), y=AI )) +
-  geom_boxplot(outlier.shape = NA, coef = 0, fill=c("aquamarine4", "aquamarine4", "aquamarine4", "aquamarine4", "aquamarine4"))+ 
-  geom_point(aes(color=training_colony), position=position_jitter(0.4), size=12, alpha = 0.5) +
-  scale_color_grey(start=0.8, end=0)+
-  scale_y_continuous(name="Aggression index") +
-  stat_summary(fun=mean, geom="point", shape=21, size=15, stroke = 3) +
-  scale_x_discrete(name ="Days where encounters took place", labels=c("Day 1
-n=184","Day 2 
-n=179","Day 3 
-n=178","Day 4
-n=169","Day 5 
-n=164")) +
-  theme(axis.text=element_text(size=54, face="bold"),
-        axis.title=element_text(size=54,face="bold"),
-        panel.background=element_rect(fill = "white", colour = "black"),
-        legend.position = "none") +
-  coord_cartesian( ylim = c(0, 4))#+
-ggsave(filename ="Exp2suplencnestmate.pdf",
-       width = 20, height = 12, dpi = 1200)
-
-M=glmer(AI~day + (1|training_colony), family=poisson, data=TRebEnc[TRebEnc$groups=="foe",])
-Anova(M) #F = 76.714 , p < 2.2e-16 ***
-anova(M) 
-pf(23.131, 4, 1755, lower.tail = FALSE) #1.183188e-18
-summary.factor(TRebEnc$groups)
-#F-distribution 
-#Fratio : 23.131
-#numerator degrees of freedom : nbtreat −1 = 5-1= 4
-#denominator degrees of freedom : n−nbtreat = 1760 -5 = 1755
-#https://www.statology.org/f-distribution-calculator/
-
-
-M=glmer(AI~day + (1|training_colony), family=poisson, data=TRebEnc[TRebEnc$groups=="nestmate",])
-Anova(M) #F= 0.4882, p = 0.4847
-anova(M) 
-pf(0.1286, 4, 869, lower.tail = FALSE) # 0.9720404
-summary.factor(TRebEnc$groups)
-#F-distribution 
-#Fratio : 23.131
-#numerator degrees of freedom : nbtreat −1 = 5-1= 4
-#denominator degrees of freedom : n−nbtreat = 874 -5 = 869
-#https://www.statology.org/f-distribution-calculator/
-
-
-#Experiment 3
-TEncJon <- read.table(".../Exp3TrainingPhase.csv",
-                      header=TRUE, sep=";", na.strings="NA", dec=",", strip.white=TRUE)
-
-#TEncJon <- TEncJon %>% mutate_if(is.character,as.factor)
-#TEncJon <- TEncJon %>% mutate_if(is.integer,as.factor)
-
-#On the short-term memory Suppl.
-TJon1 <- read.table(".../Exp3TestEncunter.csv",
-                    header=TRUE, sep=";", na.strings="NA", dec=",", strip.white=TRUE) # n=77
-TJon1 <- TJon1 %>% mutate_if(is.character,as.factor)
-TJon1 <- TJon1 %>% mutate_if(is.integer,as.factor)                   
-
-ggplot(data=TJon1[TJon1$remove!="remove",], aes(x = factor(group, level = c('fam', 'unf', 'nestmate')), y=AI )) +
-  geom_boxplot(outlier.shape = NA, coef = 0, fill=c("maroon", "yellow","aquamarine4"))+ 
-  geom_point(aes(color=foe_test), position=position_jitter(0.3), size=12, alpha = 0.5) +
-  scale_color_grey(start=0.8, end=0)+
-  scale_y_continuous(name="Aggression of focal ants") +
-  stat_summary(fun=mean, geom="point", shape=21, size=15, stroke = 3) +
-  scale_x_discrete(name ="", labels=c(
-    "Known
-Non-nestmate","Unknown
-Non-nestmate","Nestmate")) +
-  theme(axis.text=element_text(size=54, face="bold"),
-        axis.title=element_text(size=54,face="bold"),
-        panel.background=element_rect(fill = "white", colour = "black"),
-        legend.position = "none",
-        axis.line=element_line(size=1.5),
-        plot.margin=grid::unit(c(30,10,-10,10), "mm"))+
-  annotate(geom="text", x=2, y=3, label="*", color="black", size=40) #+
-ggsave(filename ="exp3plot.pdf",
-       width = 26, height = 12, dpi = 1200)
-
-ants3 <- image_read_pdf("exp2&3.pdf")
-plot3 <- image_read_pdf("exp3plot.pdf")
-final3 <- image_append(c(plot3,ants3), stack = TRUE)
-image_write(final3, path = "Experiments3_plot_final1min.pdf", format = "pdf")
-
-
-TJon1$group=relevel(TJon1$group,ref="unf")
-M2=glmer(AI~group + (1|foe_test), family=poisson, data=TJon1[TJon1$remove!="remove",])
-Anova(M2) #F=8.8859 , p = 0.01176 *
-anova(M2) 
-pf(4.4429, 2, 98, lower.tail = FALSE) #0.01422319
-
-#F-distribution 
-#Fratio : 4.4429
-#numerator degrees of freedom : nbtreat−1 = 3-1 = 2
-#denominator degrees of freedom : n−nbtreat = 101-3=98
-#https://www.statology.org/f-distribution-calculator/
-
-
-ggplot(data=TEncJon[TEncJon$treatment=="foe",],  aes(x = factor(encunter), y=AI )) +
-  geom_boxplot(outlier.shape = NA, coef = 0, fill=c("maroon", "maroon", "maroon"))+ 
-  geom_point(aes(color=training_colony), position=position_jitter(0.4), size=12, alpha = 0.5) +
-  scale_color_grey(start=0.8, end=0)+
-  scale_y_continuous(name="Aggression index") +
-  stat_summary(fun=mean, geom="point", shape=21, size=15, stroke = 3) +
-  scale_x_discrete(name ="", labels=c("Encounters 1
-n=64","Encounters 2 
-n=64","Encounters 3 
-n=64")) +
-  theme(axis.text=element_text(size=54, face="bold"),
-        axis.title=element_text(size=54,face="bold"),
-        panel.background=element_rect(fill = "white", colour = "black"),
-        legend.position = "none") #+
-ggsave(filename ="Exp3foe.pdf",
-       width = 20, height = 12, dpi = 1200)
-
-
-
-ggplot(data=TEncJon[TEncJon$treatment=="nestmate",],  aes(x = factor(encunter), y=AI )) +
-  geom_boxplot(outlier.shape = NA, coef = 0, fill=c("aquamarine4", "aquamarine4", "aquamarine4"))+ 
-  geom_point(aes(color=training_colony), position=position_jitter(0.4), size=12, alpha = 0.5) +
-  scale_color_grey(start=0.8, end=0)+
-  scale_y_continuous(name="Aggression index") +
-  stat_summary(fun=mean, geom="point", shape=21, size=15, stroke = 3) +
-  scale_x_discrete(name ="", labels=c("Encounters 1
-n=32","Encounters 2 
-n=32","Encounters 3 
-n=32")) +
-  theme(axis.text=element_text(size=54, face="bold"),
-        axis.title=element_text(size=54,face="bold"),
-        panel.background=element_rect(fill = "white", colour = "black"),
-        legend.position = "none") +
-  coord_cartesian( ylim = c(0, 4))#+
-ggsave(filename ="Exp3nestmate.pdf",
-       width = 20, height = 12, dpi = 1200)
-
-M=glmer(AI~encunter + (1|training_colony), family=poisson, data=TEncJon[TEncJon$treatment=="foe",])
-Anova(M) # F= 0.5745, p = 0.4485
-anova(M) 
-pf(0.5193, 2, 189, lower.tail = FALSE) # 0.7216431
-summary.factor(TEncJon$treatment)
-#F-distribution 
-#Fratio : 0.5193
-#numerator degrees of freedom : nbtreat −1 = 3-1= 2
-#denominator degrees of freedom : n−nbtreat = 192 -3 = 189
-#https://www.statology.org/f-distribution-calculator/
-
-M=glmer(AI~encunter + (1|training_colony), family=poisson, data=TEncJon[TEncJon$treatment=="nestmate",])
-Anova(M) # F= 0.0031, p 0.9553
-anova(M) 
-pf(0.0046, 4, 93, lower.tail = FALSE) # 0.999957
-summary.factor(TEncJon$treatment)
-#F-distribution 
-#Fratio : 0.0046
-#numerator degrees of freedom : nbtreat −1 = 3-1= 2
-#denominator degrees of freedom : n−nbtreat = 96 -3 = 189
-#https://www.statology.org/f-distribution-calculator/
-
-
-#Experiment 4
-TEncMel <- read.table(".../Exp4TrainingPhase.csv",
-                      header=TRUE, sep=";", na.strings="NA", dec=",", strip.white=TRUE)
-#TEncMel <- TEncMel %>% mutate_if(is.character,as.factor)
-#TEncMel <- TEncMel %>% mutate_if(is.integer,as.factor)
-
-
-ggplot(data=TEncMel,  aes(x = factor(treatment), y=AI )) +
-  geom_boxplot(outlier.shape = NA, coef = 0, fill=c("maroon", "maroon"))+ 
-  geom_point(aes(color=training_colony), position=position_jitter(0.4), size=12, alpha = 0.5) +
-  scale_color_grey(start=0.8, end=0)+
-  scale_y_continuous(name="Aggression index") +
-  stat_summary(fun=mean, geom="point", shape=21, size=15, stroke = 3) +
-  scale_x_discrete(name ="Non-nestmates", labels=c("Ablated antenna 
-n=657","Regular antenna
-n=714")) +
-  theme(axis.text=element_text(size=54, face="bold"),
-        axis.title=element_text(size=54,face="bold"),
-        panel.background=element_rect(fill = "white", colour = "black"),
-        legend.position = "none")+
-  annotate(geom="text", x=1.5, y=3.5, label="***", color="black", size=40) #+
-ggsave(filename ="Exp4control.pdf",
-       width = 20, height = 12, dpi = 1200)
-
-M=glmer(AI~treatment + (1|training_colony), family=poisson, data=TEncMel)
-Anova(M) # F= 88.572, p < 2.2e-16 ***
-anova(M) 
-pf(88.572, 1, 1369, lower.tail = FALSE) # 1.997441e-20
-summary.factor(TEncJon$treatment)
-#F-distribution 
-#Fratio : 88.572
-#numerator degrees of freedom : nbtreat −1 = 2-1= 1
-#denominator degrees of freedom : n−nbtreat = 1371 -2 = 1369
-#https://www.statology.org/f-distribution-calculator/
-
-
-
-ggplot(data=TEncMel,  aes(x = factor(treatment), y=contact_time )) +
-  geom_boxplot(outlier.shape = NA, coef = 0, fill=c("maroon", "maroon"))+ 
-  geom_point(aes(color=training_colony), position=position_jitter(0.4), size=12, alpha = 0.5) +
-  scale_color_grey(start=0.8, end=0)+
-  scale_y_continuous(name="contact time") +
-  stat_summary(fun=mean, geom="point", shape=21, size=15, stroke = 3) +
-  scale_x_discrete(name ="Non-nestmates", labels=c("Ablated antenna 
-n=657","Regular antenna
-n=714")) +
-  theme(axis.text=element_text(size=54, face="bold"),
-        axis.title=element_text(size=54,face="bold"),
-        panel.background=element_rect(fill = "white", colour = "black"),
-        legend.position = "none")+
-  annotate(geom="text", x=1.5, y=60, label="***", color="black", size=40) #+
-
-ggsave(filename ="contacttimeexpmel.pdf",
-       width = 20, height = 12, dpi = 1200)
-
-M=glmer(contact_time~treatment + (1|training_colony), family=poisson, data=TEncMel)
-Anova(M) # F = 37.849, p = 7.644e-10 ***
-anova(M) 
-pf(37.849, 1, 1369, lower.tail = FALSE) # 1.001671e-09
-summary.factor(TEncJon$treatment)
-#F-distribution 
-#Fratio : 88.572
-#numerator degrees of freedom : nbtreat −1 = 2-1= 1
-#denominator degrees of freedom : n−nbtreat = 1371 -2 = 1369
-#https://www.statology.org/f-distribution-calculator/
-
-
-ggplot(data=TEncMel[TEncMel$treatment=="antenna",],  aes(x = factor(day), y=AI )) +
-  geom_boxplot(outlier.shape = NA, coef = 0, fill=c("maroon", "maroon", "maroon"))+ 
-  geom_point(aes(color=training_colony), position=position_jitter(0.4), size=12, alpha = 0.5) +
-  scale_color_grey(start=0.8, end=0)+
-  scale_y_continuous(name="Aggression index") +
-  stat_summary(fun=mean, geom="point", shape=21, size=15, stroke = 3) +
-  scale_x_discrete(name ="", labels=c("Day 1
-n=271","Day 2 
-n=247","Day 3 
-n=197")) +
-  theme(axis.text=element_text(size=54, face="bold"),
-        axis.title=element_text(size=54,face="bold"),
-        panel.background=element_rect(fill = "white", colour = "black"),
-        legend.position = "none") +
-  annotate(geom="text", x=2, y=3.5, label="***", color="black", size=40) #+
-ggsave(filename ="Exp4anttraining.pdf",
-       width = 20, height = 12, dpi = 1200)
-
-summary.factor(TEncMel$treatment)
-M=glmer(AI~day + (1|training_colony), family=poisson, data=TEncMel[TEncMel$treatment=="antenna",])
-Anova(M) # F= 19.319,  p = 1.106e-05 ***
-anova(M) 
-pf(19.319, 2, 711, lower.tail = FALSE) # 1.997441e-20
-summary.factor(TEncJon$treatment)
-#F-distribution 
-#Fratio : 88.572
-#numerator degrees of freedom : nbtreat −1 = 3-1= 2
-#denominator degrees of freedom : n−nbtreat = 714 -3 = 711
-#https://www.statology.org/f-distribution-calculator/
-
-
-ggplot(data=TEncMel[TEncMel$treatment=="ablation",],  aes(x = factor(day), y=AI )) +
-  geom_boxplot(outlier.shape = NA, coef = 0, fill=c("maroon", "maroon", "maroon"))+ 
-  geom_point(aes(color=training_colony), position=position_jitter(0.4), size=12, alpha = 0.5) +
-  scale_color_grey(start=0.8, end=0)+
-  scale_y_continuous(name="Aggression index") +
-  stat_summary(fun=mean, geom="point", shape=21, size=15, stroke = 3) +
-  scale_x_discrete(name ="", labels=c("Day 1
-n=253","Day 2 
-n=217","Day 3 
-n=187")) +
-  theme(axis.text=element_text(size=54, face="bold"),
-        axis.title=element_text(size=54,face="bold"),
-        panel.background=element_rect(fill = "white", colour = "black"),
-        legend.position = "none") +
-  annotate(geom="text", x=2, y=3.5, label="***", color="black", size=40) #+
-ggsave(filename ="Exp4ablatraining.pdf",
-       width = 20, height = 12, dpi = 1200)
-
-summary.factor(TEncMel$treatment)
-M=glmer(AI~day + (1|training_colony), family=poisson, data=TEncMel[TEncMel$treatment=="ablation",])
-Anova(M) # F= 12.114,  p = 0.0005004 ***
-anova(M) 
-pf(12.114, 2, 654, lower.tail = FALSE) # 6.824405e-06
-summary.factor(TEncJon$treatment)
-#F-distribution 
-#Fratio : 88.572
-#numerator degrees of freedom : nbtreat −1 = 3-1= 2
-#denominator degrees of freedom : n−nbtreat = 657 -3 = 654
-#https://www.statology.org/f-distribution-calculator/
